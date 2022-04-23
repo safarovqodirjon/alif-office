@@ -5,14 +5,12 @@ from datetime import timedelta as tmd
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from platform import python_version
-
 import requests
 
-
-
+# создаем класс оффис
 class office:
     def __init__(self, s=0, number='', email='', name='', address='',
-                 cindate='', countdate=0, endtime=None, rno="", satage_1=False):
+                 cindate='', countdate=0, endtime=None, rno="", satage_1=False, status='zanyat'):
 
         print("*****Alif Office*****\n")
         self.s = s
@@ -24,8 +22,10 @@ class office:
         self.countdate = countdate
         self.endtime = endtime
         self.rno = rno
+        self.status = status
         self.stage_1 = satage_1
 
+    # функция для получения личних данних о клиенте
     def inputdata(self):
         self.name = input("\nВведите имя клиента:")
         self.address = input("\nВведите адресс клиената:")
@@ -33,11 +33,13 @@ class office:
         self.number = input("\nВведите номер тел клиента:")
         self.cindate = date.today()
         self.stage_1 = True
-        print("Нажмите 2:","\n")
+        print("Нажмите 2:", "\n")
 
+
+    # функция для оформления кабинет
     def rent(self):
         if self.stage_1:
-            connection_obj = sqlite3.connect('office.db')
+            connection_obj = sqlite3.connect('office.db') # подключения к базе данных
             cursor_obj = connection_obj.cursor()
 
             table = """CREATE TABLE IF NOT EXISTS customer (
@@ -50,17 +52,33 @@ class office:
                             customer_realtime TEXT,
                             customer_countday INTEGER,
                             customer_endtime TEXT,
-                            customer_total INTEGER
+                            customer_total INTEGER,
+                            customer_status VARCHAR(10)
                         );"""
 
             cursor_obj.execute(table)
             connection_obj.commit()
 
+            # провераяем не истек ли срок аренды определенного клиента в кабинете
+            try:
+                check_exp = """update customer
+                set customer_status = 'svobodna'
+                where JulianDay(DATE('now')) - JulianDay(customer_endtime)<=0;
+                """
+                cursor_obj.execute(check_exp)
+                connection_obj.commit()
+            except Exception:
+                print("Еше нет записей!")
+
             office_list = ['Office number-1', 'Office number-2', 'Office number-3', 'Office number-4',
                            'Office number-5']
 
-            real = cursor_obj.execute(
-                "select distinct customer_cabinet from customer where JulianDay(customer_endtime)-JulianDay(customer_realtime)>=0;").fetchall()
+            # real = cursor_obj.execute(
+            #     "select distinct customer_cabinet from customer where JulianDay(customer_endtime)-JulianDay(customer_realtime)>=0;").fetchall()
+
+            # подбираем только свободные номера
+
+            real = cursor_obj.execute("select distinct customer_cabinet from customer where customer_status != 'zanyat'")
             connection_obj.commit()
             db_list = []
             for val in real:
@@ -133,6 +151,8 @@ class office:
             print("****Пайжайлуст сначали нажмите 1 и заполните данные клиента***")
             print()
 
+
+    # Функция для очистки данних из дата базы (если понадобится)
     def clean(self):
         try:
 
@@ -156,17 +176,19 @@ class office:
         print("Итого :", self.s)
         print("*" * 20)
 
+    # сохраняяем в дата база
     def send_to_db(self):
         connection_obj = sqlite3.connect('office.db')
         cursor_obj = connection_obj.cursor()
+        # self.status = "zanyat"
         val = (self.name, str(self.address), str(self.number), str(self.email),
-               str(self.rno), self.cindate, self.countdate, self.endtime, self.s)
+               str(self.rno), self.cindate, self.countdate, self.endtime, self.s, self.status)
 
         query = """
         INSERT INTO customer (customer_name, customer_address,
         customer_number, customer_email, customer_cabinet, customer_realtime, 
-        customer_countday, customer_endtime, customer_total)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+        customer_countday, customer_endtime, customer_total, customer_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """
 
         cursor_obj.execute(query, val)
@@ -174,6 +196,7 @@ class office:
         connection_obj.commit()
         cursor_obj.close()
 
+    # Отправляяем сообшения лимит смс 1 в день а на эл-почту нет лимита
     def send_mess(self):
 
         recipients = str(self.email)
@@ -184,17 +207,14 @@ class office:
 
         if str(key) == '2':
 
-
             sender = "officealif2@gmail.com"
             password = "mytestpasswordforalif"
-
 
             text = f"""<h1>Здраствуйте {self.name} вы<h1>
                         </b> вы арендовали {self.rno} за <h1 style="color: red">{self.s} сомонӣ</h1>
                         <h1 style="color":green>c {self.cindate} по {self.endtime}</h1>'
                         """
             html = '<html><head></head><body><p>' + text + '</p></body></html>'
-
 
             try:
                 msg = MIMEMultipart('alternative')
@@ -226,6 +246,8 @@ class office:
 
         elif str(key) == '1':
             try:
+
+
                 resp = requests.post('https://textbelt.com/text', {
                     'phone': '+992' + self.number,
                     'message': f'Салом {self.name} вы арендавали {self.rno} с {self.cindate} по {self.endtime} за {self.s} сомонӣ',
@@ -234,13 +256,15 @@ class office:
 
                 dct = dict(resp.json())
 
-
                 if not dct['success']:
                     errors.append(str("Толко один бесплатный СМС в день" + " >> " + str(dct['error'])))
             except OSError:
                 errors.append(f'Ошыбка соединения при отправке СМС клиенту {self.name}')
+                print(errors)
 
 
+
+# финалная функция
 def run():
     o = office()
     while True:
@@ -274,4 +298,5 @@ def run():
         except Exception:
             print("***Номера только из списка ***")
 
+ # Запуск функции
 run()
