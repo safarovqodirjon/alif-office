@@ -6,9 +6,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from platform import python_version
 import requests
-
 # создаем класс оффис
-class office:
+class Office:
     def __init__(self, s=0, number='', email='', name='', address='',
                  cindate='', countdate=0, endtime=None, rno="", satage_1=False, status='zanyat'):
 
@@ -266,7 +265,7 @@ class office:
 
 # финалная функция
 def run():
-    o = office()
+    o = Office()
     while True:
         command_list = ['Введите данние клиента: ', 'Оформит кабинет: ',
                         'Напечатат чек: ', 'Послат сообшения (SMS 1 бесплатное в день, эл-почта бесплатно)',
@@ -283,7 +282,6 @@ def run():
             if ch == 2:
                 o.rent()
                 o.send_to_db()
-
             if ch == 3:
                 o.print_check()
 
@@ -297,6 +295,5 @@ def run():
 
         except Exception:
             print("***Номера только из списка ***")
-
  # Запуск функции
 run()
